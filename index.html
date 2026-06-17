@@ -188,7 +188,7 @@
   const templateImg = new Image();
   let imgReady = false;
 
-  fetch('post.png')
+  fetch('post.png?v=' + Date.now())
     .then(r => r.blob())
     .then(blob => {
       templateImg.src = URL.createObjectURL(blob);
