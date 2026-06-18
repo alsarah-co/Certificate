@@ -141,21 +141,41 @@
     height: auto;
   }
 
-  .download-btn {
+  .action-row {
+    display: flex;
+    gap: 10px;
     margin-top: 18px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .download-btn, .share-btn {
     display: inline-block;
-    padding: 13px 35px;
-    background: linear-gradient(135deg, #5170ff, #2f48c4);
-    color: #fff;
+    padding: 13px 30px;
     border-radius: 10px;
     text-decoration: none;
     font-family: 'Tajawal', sans-serif;
     font-size: 16px;
     font-weight: 700;
     transition: opacity 0.3s;
+    border: none;
+    cursor: pointer;
   }
 
-  .download-btn:hover { opacity: 0.85; }
+  .download-btn {
+    background: linear-gradient(135deg, #5170ff, #2f48c4);
+    color: #fff;
+  }
+
+  .share-btn {
+    background: rgba(81, 112, 255, 0.12);
+    color: #5170ff;
+    border: 1.5px solid rgba(81, 112, 255, 0.5);
+  }
+
+  .download-btn:hover, .share-btn:hover { opacity: 0.85; }
+
+  .share-btn[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -179,17 +199,20 @@
   <div id="canvas-wrapper">
     <canvas id="myCanvas"></canvas>
   </div>
-  <br>
-  <a class="download-btn" id="downloadBtn" download="شهادة_تقدير.png">⬇️ تحميل الصورة</a>
+  <div class="action-row">
+    <a class="download-btn" id="downloadBtn" download="شهادة_تقدير.png">⬇️ تحميل الصورة</a>
+    <button class="share-btn" id="shareBtn" onclick="shareCard()" hidden>📤 مشاركة / حفظ في الصور</button>
+  </div>
 </div>
 
 <script>
   // ① تحميل الصورة والخط مرة وحدة عند فتح الصفحة
   const templateImg = new Image();
   let imgReady = false;
+  let lastBlob = null; // آخر صورة تم إنشاؤها، تُستخدم في المشاركة
 
-fetch('post.png')
-  .then(r => r.blob())
+  fetch('post.png?v=' + Date.now())
+    .then(r => r.blob())
     .then(blob => {
       templateImg.src = URL.createObjectURL(blob);
       templateImg.onload = () => { imgReady = true; };
@@ -200,6 +223,11 @@ fetch('post.png')
   customFont.load()
     .then(f => { document.fonts.add(f); })
     .catch(e => console.log('Font fallback:', e));
+
+  // إظهار زر المشاركة فقط لو الجهاز/المتصفح يدعم مشاركة الملفات (أغلب الجوالات)
+  function shareSupported() {
+    return !!(navigator.canShare && navigator.share);
+  }
 
   // ② عند الضغط على الزر
   async function generateCard() {
@@ -244,6 +272,17 @@ fetch('post.png')
       ctx.fillText(name, cx, nameY);
 
       document.getElementById('downloadBtn').href = canvas.toDataURL('image/png');
+
+      // تجهيز نسخة Blob من الصورة لاستخدامها بالمشاركة
+      canvas.toBlob(blob => { lastBlob = blob; }, 'image/png');
+
+      const shareBtn = document.getElementById('shareBtn');
+      if (shareSupported()) {
+        shareBtn.hidden = false;
+      } else {
+        shareBtn.hidden = true;
+      }
+
       document.getElementById('previewSection').classList.add('visible');
       document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth' });
 
@@ -253,6 +292,32 @@ fetch('post.png')
     } finally {
       btn.disabled = false;
       btn.textContent = 'إنشاء الشهادة';
+    }
+  }
+
+  // ③ زر المشاركة - يفتح قائمة مشاركة الجوال، ومنها "حفظ في الصور"
+  async function shareCard() {
+    if (!lastBlob) {
+      alert('من فضلك أنشئ الشهادة أولاً');
+      return;
+    }
+
+    try {
+      const file = new File([lastBlob], 'شهادة_تقدير.png', { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'شهادة تقدير - موسم الحج 1447هـ'
+        });
+      } else {
+        alert('المشاركة غير مدعومة على هذا المتصفح، استخدم زر التحميل');
+      }
+    } catch (err) {
+      // المستخدم لو ألغى المشاركة، لا حاجة لإظهار خطأ
+      if (err.name !== 'AbortError') {
+        console.error(err);
+      }
     }
   }
 
